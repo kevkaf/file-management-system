@@ -15,7 +15,7 @@ class FileOperations:
         self.logger = logging.getLogger(__name__)
         if not self.logger.handlers:
             handler =  logging.StreamHandler()
-            formatter = logging.Formatter("%(asctime)s - %(level_name)s - %(message)s ")
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s ")
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
             self.logger.setLevel(logging.INFO)
@@ -47,17 +47,16 @@ class FileOperations:
             parent_dir = path.parent
             if not parent_dir.exists():
                 parent_dir.mkdir(parents=True ,exist_ok=True)
-                self._lof_error(f"Created parent directory: {parent_dir}", "INFO")
+                self._log_error(f"Created parent directory: {parent_dir}", "INFO")
                 return True
         except Exception as e:
             self._log_error(f"Failed to create parent directory for {path}: {e}")
-            return 
+            return False
         
         
     def _safe_open(self, path: Path, mode: str = 'r', **kwargs):
         """
-        Safely open a file with proper error handling and cleanup.
-        
+        Safely open a file with proper error handling and cleanup.        
         This is a context manager that ensures files are properly closed
         even if an error occurs.
         """
@@ -75,7 +74,6 @@ class FileOperations:
             def __exit__(self, exc_type, exc_val, exc_tb):
                 if self.file:
                     self.file.close()
-                # Don't suppress exceptions
                 return False
         
         return SafeFileOpener(path, mode, kwargs)
@@ -98,7 +96,7 @@ class FileOperations:
             self._ensure_parent_exists(path)
 
             # Create the file with content
-            with open(path, "w", encoding=encoding) as f:
+            with self._safe_open(path, "w", encoding=encoding) as f:
                 f.write(content)
 
             self._log_error(f"Created file: {path}", "INFO")
