@@ -161,8 +161,8 @@ class FileOps:
         except OSError as e:
             logger.error("Failed to delete file: %s", path)
             return False
-        
 
+        
    
     # Copy / Move file
 
