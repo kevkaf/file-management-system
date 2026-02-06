@@ -7,11 +7,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 class DirOps:
     def __init__(self, current_dir):
         self.current_dir = Path(current_dir) or Path.cwd()
 
+    # ----------------------------------- INTERNAL HELPER FUNCTIONS---------------------------------------------#
     def _ensure_path_exists(self, dirpath: Union[str, Path]) -> bool:
             path = Path(dirpath)
             if not dirpath.exists():
@@ -27,6 +27,11 @@ class DirOps:
         if not path.is_absolute():
             path = self.current_dir / path
         return path.resolve() 
+
+
+    # ----------------------------------- CRUD OPERATIONS---------------------------------------------#
+    
+    # List Directories 
 
     def list_dir(self, dirpath: Union[str, Path], *,show_hidden: bool=False, dir_only: bool=False, files_only: bool=False, names_only=False) -> Optional[List[Path]]:
 
@@ -61,9 +66,11 @@ class DirOps:
             logger.error("Error listing directory %s: %s", path, e)
             return None
         
+    # Create Directory
+
     def create_dir(self, dirpath: Union[str, Path], parents: bool=True, exists: bool=False) -> bool:
 
-        path = Path(dirpath)
+        path = self._resolve_path(dirpath)
         try:
             path.mkdir(parents=parents, exist_ok=exists)
             logger.info("Directory created succssfully: %s", path)
@@ -76,11 +83,13 @@ class DirOps:
             logger.error("Failed to create Directory %s: %s", path, e)
             return False
         
+    # Copy directory 
+
     def copy_dir(self, source: Union[str, Path], destination: Union[str, Path], exists: bool=False) -> bool:
         
         try:
-            source = Path(source)
-            destination = Path(destination)
+            source = self._resolve_path(source)
+            destination = self._resolve_path(destination)
 
             if not self._ensure_path_exists(source):
                 return False
@@ -95,11 +104,13 @@ class DirOps:
         except OSError as e:
             logger.error("Failed to copy directory %s -> %s: %s", source, destination, e)
             return False
+
+    # Move Directory
         
     def move_dir(self, source: Union[str, Path], destination: Union[str, Path], overwrite: bool=False) -> bool:
 
-        source = Path(source)
-        destination = Path(destination)
+        source = self._resolve_path(source)
+        destination = self._resolve_path(destination)
 
         try:
             if not source.exists():
@@ -120,9 +131,11 @@ class DirOps:
         except OSError as e:
             logger.error("Failed to move directory %s -> %s: %s", source, destination, e)
             return False
-        
+
+    # Delete Directory
+    
     def delete_dir(self, dirpath: Union[str, Path], ignore_errors: bool = False) -> bool:
-        path = Path(dirpath)
+        path = self._resolve_path(dirpath)
         
         if not self._ensure_path_exists(path):
             return False
@@ -135,7 +148,9 @@ class DirOps:
         except OSError as e:
             logger.error("Failed to delete directory %s: %s", path, e)
             return False
-        
+
+    # Get Directory size
+   
     def get_directory_size(self, dirpath: Union[str, Path]) -> Optional[int]:
                 
         try:
@@ -151,6 +166,8 @@ class DirOps:
             logger.error("Error accessing files in %s: %s", path, e)
             return None
         
+    # Check if directory is empty
+    
     def is_empty(self, dirpath: Union[str, Path]) -> Optional[bool]:
         path = self._resolve_path(dirpath)
         

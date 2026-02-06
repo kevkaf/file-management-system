@@ -121,31 +121,8 @@ class FileOps:
             return False
 
 
-    # Update File
 
-    def update_file(self, filepath: Union[str, Path], content: str="", *, append: bool=False, encoding: str="utf-8") -> bool:
-
-        try:
-            path = self._resolve_path(filepath)
-
-            self._ensure_file_exists(path)
-            
-            update_mode = "a" if append else "w"
-            
-            with open(path, update_mode, encoding=encoding) as f:
-                f.write(content)
-
-
-            action = "appended to" if append else "updated"
-            logger.info("File %s: %s", action, path)
-            return True
-
-        except OSError as e:
-            logger.error("Failed to update path %s: %s", path, e)
-            return False
-
-
-     # Delete File
+    # Delete File
 
     def delete_file(self, filepath: Union[str, Path]) -> bool:
 
@@ -173,19 +150,19 @@ class FileOps:
             destination = self._resolve_path(destination)
 
             self._ensure_file_exists(source)
-            if not destination.exists():
-                raise FileNotFoundError(f"Directory {destination} not found")
-            if not destination.is_dir():
-                logger.error("%s must be a directory", destination)
-                return False
+
+            if destination.is_dir():
+                destination = destination / source.name
             
-            if not move:
+            self._ensure_parent_dir(destination)
+            
+            if move:                
+                shutil.move(str(source), str(destination))
+                logger.info("%s successfully moved to %s", source, destination)
+            else:
                 shutil.copy2(source, destination)
                 logger.info("%s successfully copy to %s", source, destination)
-                return True
-
-            shutil.move(str(source), str(destination))
-            logger.info("%s successfully moved to %s", source, destination)
+                
             return True
         
         except OSError as e:
