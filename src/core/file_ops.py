@@ -1,190 +1,214 @@
-from pathlib import Path
-from typing import Union, Iterator, List
-import logging
+"""
+Core File Operations Module
+Handles basic CRUD operations for files
+"""
+
+import os
 import shutil
+import logging
+from pathlib import Path
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
-class FileOps:
-    def __init__(self, base_path: Union[str, Path, None] = None):
-        self.base_path = Path(base_path).resolve() if base_path else Path.cwd()
 
+class FileOperations:
+    """Handles basic file CRUD operations"""
     
-    # --------- INTERNAL HELPER FUNCTIONS -------------- #
-
-    def _resolve_path(self, filepath: Union[str, Path]) -> Path:
-        path = Path(filepath)
-        return path if path.is_absolute() else (self.base_path / path)
-    
-    def _ensure_parent_dir(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-    def _ensure_file_exists(self, path: Path) -> None:
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
-        if path.is_dir():
-            raise IsADirectoryError(f"Expected file but got directory: {path}")
+    @staticmethod
+    def create_file(filepath: Union[str, Path], content: str = "") -> bool:
+        """
+        Create a new file with optional content
         
-    # --------- CRUD OPERATIONS ---------------------- #
-
-
-    # Create File
-
-    def create_file(self, filepath: Union[str, Path], content: str="", *, encoding: str="utf-8", overwrite: bool=False) -> bool:
-        
-        try:
-            path = self._resolve_path(filepath)
-
-            if path.exists() and not overwrite:
-                raise FileExistsError(f"File already exists: {path}")
-            if path.exists() and path.is_dir():
-                raise IsADirectoryError(f"Cannot create file, path is a directory: {path}")
+        Args:
+            filepath: Path where file should be created
+            content: Optional initial content for the file
             
-            self._ensure_parent_dir(path)
-
-            with open(path, 'w', encoding=encoding) as f:
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            filepath = Path(filepath)
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
-
-            logger.info("File created: %s", path)
+            
+            logger.info(f"File created: {filepath}")
             return True
-        
-        except OSError as e:
-            logger.error("Error creating file %s: %s", path, e)
+        except Exception as e:
+            logger.error(f"Error creating file {filepath}: {e}")
             return False
-
-    # Read File 
-               
-    def read_file(self, filepath: Union[str, Path], *, mode: str="full", encoding: str="utf-8", binary: bool=False, chunk_size=8192) -> Union[str, bytes, List[str], Iterator[Union[str, bytes]]]:
-
-        try:
-
-            path = self._resolve_path(filepath)
-
-            self._ensure_file_exists(path)
-
-            file_mode = "rb" if binary else "r"
-            file_encoding = None if binary else encoding
-
-            if mode == "full":
-                with open(path, file_mode, encoding=file_encoding) as f:
-                    data = f.read()
-                logger.info("Read File: %s", path)
-                return data
-            
-            elif mode == "lines":
-                with open(path, file_mode, encoding=file_encoding) as f:
-                    lines = f.readlines()
-                logger.info("Read %d lines from %s", len(lines), path)
-                return lines
-
-            elif mode == "chunk":
-                def iterator():
-                    with open(path, file_mode, encoding=file_encoding) as f:
-                        while True:
-                            chunk = f.read(chunk_size)
-                            if not chunk:
-                                break
-                            yield chunk
-
-                logger.info("Reading file in chunks: %s", path)
-                return iterator()
+    
+    @staticmethod
+    def read_file(filepath: Union[str, Path], binary: bool = False) -> Optional[Union[str, bytes]]:
+        """ 
+        Read file contents
         
-            else:
-                raise ValueError(f"Unknown read mode: {mode}")
-
-        except OSError as e:
-            logger.error("Failed to read path: %s", path)
-            raise
-
-
-    # Update File
-
-    def update_file(self, filepath: Union[str, Path], content: str="", *, append: bool=False, encoding: str="utf-8") -> bool:
-
+        Args:
+            filepath: Path to file to read
+            binary: If True, read in binary mode
+            
+        Returns:
+            File contents as string or bytes, None if error
+        """
         try:
-            path = self._resolve_path(filepath)
-
-            self._ensure_file_exists(path)
+            filepath = Path(filepath)
+            if not filepath.exists():
+                logger.error(f"File not found: {filepath}")
+                return None
             
-            update_mode = "a" if append else "w"
+            mode = 'rb' if binary else 'r'
+            encoding = None if binary else 'utf-8'
             
-            with open(path, update_mode, encoding=encoding) as f:
+            with open(filepath, mode, encoding=encoding) as f:
+                content = f.read()
+            
+            logger.debug(f"File read: {filepath}")
+            return content
+        except Exception as e:
+            logger.error(f"Error reading file {filepath}: {e}")
+            return None
+    
+    @staticmethod
+    def update_file(filepath: Union[str, Path], content: str, append: bool = False) -> bool:
+        """
+        Update file contents
+        
+        Args:
+            filepath: Path to file to update
+            content: New content to write
+            append: If True, append instead of overwrite
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            filepath = Path(filepath)
+            if not filepath.exists():
+                logger.error(f"File not found: {filepath}")
+                return False
+            
+            mode = 'a' if append else 'w'
+            with open(filepath, mode, encoding='utf-8') as f:
                 f.write(content)
-
-
+            
             action = "appended to" if append else "updated"
-            logger.info("File %s: %s", action, path)
+            logger.info(f"File {action}: {filepath}")
             return True
-
-        except OSError as e:
-            logger.error("Failed to update path %s: %s", path, e)
-            return False
-
-
-
-    # Delete File
-
-    def delete_file(self, filepath: Union[str, Path]) -> bool:
-
-        try: 
-            path = self._resolve_path(filepath)
-
-            self._ensure_file_exists(path)
-            
-            path.unlink()
-            logger.info("File deleted successfully: %s", path)
-            return True
-        
-        except OSError as e:
-            logger.error("Failed to delete file: %s", path)
-            return False
-
-        
-   
-    # Copy / Move file
-
-    def copy_or_move_file(self, source: Union[str, Path], destination: Union[str, Path], move: bool=False) -> bool:
-
-        try:
-            source = self._resolve_path(source)
-            destination = self._resolve_path(destination)
-
-            self._ensure_file_exists(source)
-
-            if destination.is_dir():
-                destination = destination / source.name
-            
-            self._ensure_parent_dir(destination)
-            
-            if move:                
-                shutil.move(str(source), str(destination))
-                logger.info("%s successfully moved to %s", source, destination)
-            else:
-                shutil.copy2(source, destination)
-                logger.info("%s successfully copy to %s", source, destination)
-                
-            return True
-        
-        except OSError as e:
-            text = "moving" if move else "copyiing"
-            logger.error("Error %s file %s -> %s: %s", text, source, destination, e)
+        except Exception as e:
+            logger.error(f"Error updating file {filepath}: {e}")
             return False
     
-    
-    # Rename File
-
-    def rename_file(self, filepath: Union[str, Path], new_name: str) -> bool:
+    @staticmethod
+    def delete_file(filepath: Union[str, Path]) -> bool:
+        """
+        Delete a file
         
+        Args:
+            filepath: Path to file to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
         try:
-            path = self._resolve_path(filepath)
-            self._ensure_file_exists(path)
-
-            new_path = path.parent / new_name
-            path.rename(new_path)
-
-            logger.info("File %s renamed successfully", path)
+            filepath = Path(filepath)
+            if not filepath.exists():
+                logger.error(f"File not found: {filepath}")
+                return False
+            
+            if filepath.is_dir():
+                logger.error(f"Cannot delete directory with delete_file: {filepath}")
+                return False
+            
+            filepath.unlink()
+            logger.info(f"File deleted: {filepath}")
             return True
+        except Exception as e:
+            logger.error(f"Error deleting file {filepath}: {e}")
+            return False
+    
+    @staticmethod
+    def copy_file(source: Union[str, Path], destination: Union[str, Path]) -> bool:
+        """
+        Copy a file to a new location
         
-        except OSError as e:
-            logger.error("Failed to rename file %s due to %s", path, e)
+        Args:
+            source: Source file path
+            destination: Destination file path
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            source = Path(source)
+            destination = Path(destination)
+            
+            if not source.exists():
+                logger.error(f"Source file not found: {source}")
+                return False
+            
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+            
+            logger.info(f"File copied: {source} -> {destination}")
+            return True
+        except Exception as e:
+            logger.error(f"Error copying file {source} to {destination}: {e}")
+            return False
+    
+    @staticmethod
+    def move_file(source: Union[str, Path], destination: Union[str, Path]) -> bool:
+        """
+        Move a file to a new location
+        
+        Args:
+            source: Source file path
+            destination: Destination file path
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            source = Path(source)
+            destination = Path(destination)
+            
+            if not source.exists():
+                logger.error(f"Source file not found: {source}")
+                return False
+            
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+            
+            logger.info(f"File moved: {source} -> {destination}")
+            return True
+        except Exception as e:
+            logger.error(f"Error moving file {source} to {destination}: {e}")
+            return False
+    
+    @staticmethod
+    def rename_file(filepath: Union[str, Path], new_name: str) -> bool:
+        """
+        Rename a file
+        
+        Args:
+            filepath: Path to file to rename
+            new_name: New name for the file
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            filepath = Path(filepath)
+            if not filepath.exists():
+                logger.error(f"File not found: {filepath}")
+                return False
+            
+            new_path = filepath.parent / new_name
+            filepath.rename(new_path)
+            
+            logger.info(f"File renamed: {filepath} -> {new_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error renaming file {filepath}: {e}")
             return False
